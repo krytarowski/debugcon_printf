@@ -1,0 +1,181 @@
+debugcon_printf for NetBSD
+
+This is a NetBSD specific loadable kernel module that implements a standalone
+printing mechanism to Bochs/Qemu-style debug console (port 0xe9).
+
+Prerequisites
+=============
+
+ * NetBSD distribution preinstalled with kernel sources (src/sys)
+
+ * NetBSD/amd64 kernel tested (i386 should work)
+
+Building
+========
+
+Steps:
+
+1. Fetch the sources of debugcon_printf.
+2. Fetch the NetBSD kernel sources in the same version as your running kernel.
+3. If the kernel sources are in a custom location, pass it with BSDSRCDIR.
+4. Run make(1) and build the sources of the kernel module:
+
+$ make # BSDSRCDIR=/usr/src
+
+Testing
+=======
+
+Testing is performed in user-space. The 'test' target builds two versions
+of test.c: with debugconf_printf() compiled in userland and printf(3) from
+libc. As a validation outputs from both functions are compared.
+
+In order to run tests, invoke:
+
+$ make test
+
+Files
+=====
+
+debugcon_printf.kmod - loadable kernel module for the NetBSD kernel
+debugcon_printf.h    - kernel header with the prototype of debugconf_printf()
+
+Usage
+=====
+
+Start Qemu with extra arguments for debugcon and optionally specifying port:
+
+-debugcon dev
+    Redirect the debug console to host device dev (same devices as the serial
+    port).  The debug console is an I/O port which is typically port 0xe9;
+    writing to that I/O port sends output to this device. The default device is
+    "vc" in graphical mode and "stdio" in non graphical mode.
+
+The debug console port can be specified with:
+
+  -global isa-debugcon.iobase=0xe9
+
+As root:
+
+  # modload -i iobase=0xe9 ./debugcon_printf.kmod # 233=0xe9
+
+NB. The argument passed to -i as of NetBSD 8.99.42 must be decimal.
+
+Include the debugcon_printf header in your code:
+
+  #include <debugcon_printf.h> /* or "debugcon_printf.h" */
+
+Print "hello world" in your code:
+
+  debugcon_printf("Hello world!\n");
+
+Example
+=======
+
+1. Start a NetBSD Qemu guest with:
+
+$ qemu-system-x86_64 \
+	...
+	-debugcon file:/tmp/qemu.debug.log -global isa-debugcon.iobase=0xe9 \
+	...
+
+2. Fetch debugcon_printf repository.
+
+3. Build debugconf_printf and insert into the kernel.
+
+$ make
+$ modload ./debugcon_printf.kmod
+
+4. Build example/ and insert into the kernel.
+
+$ cd example
+$ modload ./example.kmod
+
+5. Read the Qemu debug log file.
+
+$ cat /tmp/qemu.debug.log | head
+Hello world
+'My string_12345'
+'                                                                                     My string_12345'
+'My string_12345                                                                                     '
+	'Tab.'
+'%'
+'X'
+'88'
+'2'
+'3'
+
+Use-cases
+=========
+
+Ad-hoc outputing debug text without patching the NetBSD kernel code.
+
+The debugging console is specific to an emulator (Bochs and Qemu) and it uses
+CPU specific code ("outb" instruction). Additionally this source code file is
+shared with Rump Kernel for which it shall be disabled.
+
+Ability to build a standalone printf(9) implementation that is not instrumented
+by a compiler with sanitizer and without code coverage. This is the reason why
+the module reduces the code (symbol) sharing with the kernel.
+
+Supported syntax
+================
+
+debugcon_printf() supports the subset of the standard ANSI printf(3) syntax.
+
+%[MODIFIERS][WIDTH][TYPE_MODIFIERS][TYPE]
+
+Supported modifiers:
+
+ - '#' Print character with alternative form (supported for numbers only).
+ - '-' Left adjustment (supported for strings only).
+ - '+' Print leading '+' character for signed positive numbers.
+ - ' ' Print leading ' ' character for signed positive numbers.
+ - '0' Print number with leading zeros padding.
+
+Field width is a decimal number (supported for strings only).
+
+Supported type modifiers:
+ - 'l' long
+ - 'll' long long
+ - 'h' short
+ - 'hh' short short (char)
+ - 'z' size_t type (mapped to long)
+
+Supported types:
+
+ - 's' string (char *)
+ - 'c' character
+ - 'd' signed integer
+ - 'u' unsigned integer
+ - 'x' hex number
+ - 'o' oct number
+
+'%%' is printed as '%'.
+
+Implementation details
+======================
+
+The kernel module is implemented in a single C file debugcon_printf.c with
+a header for external users debugcon_printf.h.
+
+The debugcon_printf() implementation does not call any external system function
+libraries. The propose of this design is to be independent from other kernel
+routines that coult be instrumented with either sanitizer or code coverage.
+
+Porting notes
+=============
+
+The code in debugcon_printf.c is NetBSD kernel specific.
+
+Expanding support to new CPUs requires porting the internal_putchar() function.
+This function implements I/O port byte write.
+
+License
+=======
+
+BSD 2-clause.
+
+Author
+======
+
+Kamil Rytarowski <kamil @ NetBSD . org>

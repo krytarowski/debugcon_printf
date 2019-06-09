@@ -283,9 +283,9 @@ itoa:
 			case 'u': /* unsigned */
 				if (longer == 0 || shorter > 0)
 					u = va_arg(ap, unsigned int);
-				else if (longer == 1)
+				else if (longer == 1 || sizet == 1)
 					u = va_arg(ap, unsigned long int);
-				else if (longer == 2 || sizet == 1)
+				else if (longer == 2)
 					u = va_arg(ap, unsigned long long int);
 				internal_utoa(u, 10);
 				break;

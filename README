@@ -56,7 +56,7 @@ The debug console port can be specified with:
 
 As root:
 
-  # modload -i iobase=0xe9 ./debugcon_printf.kmod # 233=0xe9
+  # modload -i iobase=233 ./debugcon_printf.kmod # 233=0xe9
 
 NB. The argument passed to -i as of NetBSD 8.99.42 must be decimal.
 
@@ -110,12 +110,17 @@ Use-cases
 Ad-hoc outputing debug text without patching the NetBSD kernel code.
 
 The debugging console is specific to an emulator (Bochs and Qemu) and it uses
-CPU specific code ("outb" instruction). Additionally this source code file is
-shared with Rump Kernel for which it shall be disabled.
+CPU specific code ("outb" instruction). Why to not merge this into mainline
+kernel code? This implementation is CPU specific and the code is shared with
+rumpkernels that shall not run privileged instructions. The main motivation
+here is to output log to an external console out of the guest machine, without
+triggering sanitizers or code coverage functions, what would be difficult to
+achieve with using generic kernel code stack.
 
-Ability to build a standalone printf(9) implementation that is not instrumented
-by a compiler with sanitizer and without code coverage. This is the reason why
-the module reduces the code (symbol) sharing with the kernel.
+Printing to debug console allows to gather track of enormous kernel trace
+logs for gigabytes of data. Traditional mechanisms like dmesg(8) are highly
+restricted to small buffers and are not always suitable to see the full
+log of booting messages.
 
 Supported syntax
 ================
@@ -160,7 +165,7 @@ a header for external users debugcon_printf.h.
 
 The debugcon_printf() implementation does not call any external system function
 libraries. The propose of this design is to be independent from other kernel
-routines that coult be instrumented with either sanitizer or code coverage.
+routines that could be instrumented with either sanitizer or code coverage.
 
 Porting notes
 =============
